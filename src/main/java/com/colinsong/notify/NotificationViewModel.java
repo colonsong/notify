@@ -15,4 +15,6 @@ public class NotificationViewModel extends ViewModel {
     public void setNotificationList(List<String> notificationList) {
         this.notificationList = notificationList;
     }
+
+
 }

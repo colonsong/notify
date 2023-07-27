@@ -18,6 +18,10 @@ import androidx.recyclerview.widget.RecyclerView;
 import com.colinsong.notify.databinding.ActivityMainBinding;
 
 import java.util.ArrayList;
+import java.util.Date;
+import java.text.SimpleDateFormat;
+import java.util.Date;
+import java.util.Locale;
 import java.util.List;
 public class MainActivity extends AppCompatActivity {
     public static List<String> notificationList = new ArrayList<>();
@@ -61,7 +65,9 @@ public class MainActivity extends AppCompatActivity {
             public void onClick(View v) {
                 // 模擬接收通知
                 String notificationTitle = "測試通知";
-                String notificationContent = "這是一條測試通知內容";
+                String timeStamp = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault()).format(new Date());
+                String notificationContent = "這是一條測試通知內容，時間戳：" + timeStamp;
+
 
                 String notificationInfo = "Title: " + notificationTitle + "\nContent: " + notificationContent;
                 NotificationReceiver.addNotification(notificationInfo);
