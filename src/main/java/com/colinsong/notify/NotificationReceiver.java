@@ -32,6 +32,10 @@ public class NotificationReceiver extends NotificationListenerService {
         }
     }
 
+    public static void addNotification(String notificationInfo) {
+        notificationList.add(notificationInfo);
+    }
+
     @Override
     public void onNotificationRemoved(StatusBarNotification sbn) {
         // Handle notification removal logic if needed

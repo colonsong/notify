@@ -1,6 +1,7 @@
 package com.colinsong.notify;
 
 import android.app.NotificationManager;
+import android.content.ComponentName;
 import android.content.Intent;
 import android.os.Build;
 import android.os.Bundle;
@@ -10,6 +11,7 @@ import android.widget.Button;
 
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.app.NotificationCompat;
+import androidx.lifecycle.ViewModelProvider;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
@@ -17,15 +19,14 @@ import com.colinsong.notify.databinding.ActivityMainBinding;
 
 import java.util.ArrayList;
 import java.util.List;
-import android.content.ComponentName;
-import android.content.IntentFilter;
 public class MainActivity extends AppCompatActivity {
-    private List<String> notificationList = new ArrayList<>();
+    public static List<String> notificationList = new ArrayList<>();
     private NotificationAdapter notificationAdapter;
     private NotificationReceiver notificationReceiver;
     private ActivityMainBinding binding;
 
-
+    // 創建ViewModel成員變量
+    private NotificationViewModel notificationViewModel;
 
 
     private static final int REQUEST_CODE_NOTIFICATION_PERMISSION = 200;
@@ -41,7 +42,11 @@ public class MainActivity extends AppCompatActivity {
         RecyclerView recyclerView = findViewById(R.id.notificationRecyclerView);
         recyclerView.setLayoutManager(new LinearLayoutManager(this));
 
-        notificationList = new ArrayList<>();  // 创建通知列表
+        // 創建或獲取現有的ViewModel
+        notificationViewModel = new ViewModelProvider(this).get(NotificationViewModel.class);
+        notificationList = notificationViewModel.getNotificationList();
+
+
 
         notificationAdapter = new NotificationAdapter(notificationList);  // 创建适配器
 
@@ -50,20 +55,17 @@ public class MainActivity extends AppCompatActivity {
         // 创建 NotificationReceiver 实例并传递 notificationList 和 notificationAdapter
         notificationReceiver = new NotificationReceiver(notificationList, notificationAdapter);
 
-
         Button sendNotificationButton = binding.sendNotificationButton;
         sendNotificationButton.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                // 创建一个模拟的通知
-                String notificationTitle = "测试通知";
-                String notificationContent = "这是一条测试通知内容";
+                // 模擬接收通知
+                String notificationTitle = "測試通知";
+                String notificationContent = "這是一條測試通知內容";
 
-                // 发送广播以触发 NotificationReceiver 的 onReceive() 方法
-                Intent intent = new Intent("com.colinsong.NOTIFICATION_RECEIVED");
-                intent.putExtra(NotificationCompat.EXTRA_TITLE, notificationTitle);
-                intent.putExtra(NotificationCompat.EXTRA_TEXT, notificationContent);
-                sendBroadcast(intent);
+                String notificationInfo = "Title: " + notificationTitle + "\nContent: " + notificationContent;
+                NotificationReceiver.addNotification(notificationInfo);
+                notificationAdapter.notifyDataSetChanged();
             }
         });
 
