@@ -1,8 +1,10 @@
 package com.colinsong.notify;
 
 import android.app.Notification;
+import android.content.ContentValues;
 import android.content.pm.ApplicationInfo;
 import android.content.pm.PackageManager;
+import android.database.sqlite.SQLiteDatabase;
 import android.service.notification.NotificationListenerService;
 import android.service.notification.StatusBarNotification;
 import android.graphics.Color;
@@ -31,10 +33,15 @@ import android.text.TextUtils;
 import android.os.Bundle;
 import android.service.notification.NotificationListenerService;
 import android.service.notification.StatusBarNotification;
-public class NotificationReceiver extends NotificationListenerService {
 
+import androidx.lifecycle.MutableLiveData;
+
+public class NotificationReceiver extends NotificationListenerService {
+    private MutableLiveData<List<String>> notificationLiveData = new MutableLiveData<>();
+    private MyDatabaseHelper dbHelper;
     private static List<String> notificationList;
     private static NotificationAdapter notificationAdapter;
+
     public NotificationReceiver() {
         // 空的無參數構造函數
 
@@ -52,10 +59,13 @@ public class NotificationReceiver extends NotificationListenerService {
             String timeStamp = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault()).format(new Date());
 
             String appName =getAppNameFromPackage(sbn.getPackageName());
-            if (appName.equals("jp.naver.line.android") || appName.equals("com.google.android.youtube")) {
+            if (appName.equals("jp.naver.line.android")
+                    || appName.equals("com.google.android.youtube")
+                  //  || appName.equals("com.instagram.android")
+            ) {
                 return;
             }
-            String notificationTitle = appName + "\n" + timeStamp + "\n" + sbn.getNotification().extras.getString(Notification.EXTRA_TITLE);
+            String notificationTitle =  sbn.getNotification().extras.getString(Notification.EXTRA_TITLE);
             String notificationContent = sbn.getNotification().extras.getString(Notification.EXTRA_TEXT);
 
             if (TextUtils.isEmpty(notificationTitle) || TextUtils.isEmpty(notificationContent)) {
@@ -94,10 +104,14 @@ public class NotificationReceiver extends NotificationListenerService {
             }
 
             // 組合通知標題和內容，並加入到通知列表
-            String notificationInfo =  spannableTitle + "\n " + spannableContent;
-            notificationList.add(notificationInfo);
-            Collections.reverse(notificationList);
-            notificationAdapter.notifyDataSetChanged();
+             notificationTitle = appName + "\n" + timeStamp + "\n" + spannableTitle;
+            String notificationInfo =  notificationTitle + "\n " + spannableContent;
+            this.notificationList.add(0, notificationInfo);
+
+            // 寫入資料庫
+            writeToDatabase(appName, notificationTitle, notificationContent, timeStamp);
+
+
         }
     }
 
@@ -112,7 +126,7 @@ public class NotificationReceiver extends NotificationListenerService {
         }
     }
     public static void addNotification(String notificationInfo) {
-        notificationList.add(0,notificationInfo);
+        notificationList.add(notificationInfo);
     }
 
     @Override
@@ -140,6 +154,32 @@ public class NotificationReceiver extends NotificationListenerService {
             });
         }
 
+    }
+    public MutableLiveData<List<String>> getNotificationLiveData() {
+        return notificationLiveData;
+    }
+    private void writeToDatabase(String appName, String title, String content, String timeStamp) {
+        // 創建資料庫的 Helper 類的實例
+        dbHelper = MyDatabaseHelper.getInstance(this);
+
+        // 取得可寫入資料庫的實例
+        SQLiteDatabase db = dbHelper.getWritableDatabase();
+
+        // 將資料封裝成 ContentValues
+        ContentValues values = new ContentValues();
+        values.put("timestamp", timeStamp);
+        values.put("packageName", appName);
+        values.put("title", title);
+        values.put("content", content);
+
+        // 插入資料到 messages 資料表中
+        long newRowId = db.insert("messages", null, values);
+
+        // 釋放資源
+        db.close();
+
+        notificationAdapter.notifyDataSetChanged();
+        // 在這裡你可以做一些錯誤處理或日誌紀錄等，確保資料正確寫入資料庫
     }
 
 }
