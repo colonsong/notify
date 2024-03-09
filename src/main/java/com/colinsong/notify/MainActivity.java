@@ -1,5 +1,6 @@
 package com.colinsong.notify;
 
+import android.app.AlertDialog;
 import android.app.Notification;
 import android.app.NotificationManager;
 import android.content.ComponentName;
@@ -11,9 +12,11 @@ import android.os.Bundle;
 import android.provider.Settings;
 import android.view.View;
 import android.widget.Button;
+import android.widget.Toast;
 
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.app.NotificationCompat;
+import androidx.core.app.NotificationManagerCompat;
 import androidx.lifecycle.MutableLiveData;
 import androidx.lifecycle.Observer;
 import androidx.lifecycle.ViewModelProvider;
@@ -40,10 +43,9 @@ public class MainActivity extends AppCompatActivity {
     private NotificationViewModel notificationViewModel;
     private MutableLiveData<List<String>> notificationLiveData = new MutableLiveData<>();
 
-
-
+    private static final int NOTIFICATION_ID_PERMISSION_REMINDER = 1;
     private static final int REQUEST_CODE_NOTIFICATION_PERMISSION = 200;
-
+    private static final int REQUEST_NOTIFICATION_ACCESS = 1;
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -84,8 +86,14 @@ public class MainActivity extends AppCompatActivity {
             }
         });
 
-        // 检查通知权限并请求
-        requestNotificationPermission();
+        // 检查是否已经授予通知监听权限
+        if (!isNotificationListenerEnabled()) {
+            // 如果没有授予权限，则请求用户授权
+            requestNotificationListenerPermission();
+        } else {
+            // 如果已经授予权限，则启动NotificationReceiver服务
+            startNotificationReceiverService();
+        }
 
         // 观察 LiveData 数据并更新通知列表
         notificationLiveData.observe(this, new Observer<List<String>>() {
@@ -99,6 +107,13 @@ public class MainActivity extends AppCompatActivity {
 
         // 讀取資料庫中的通知資訊並加入到 notificationList 中
         readNotificationsFromDatabase();
+    }
+
+    // 请求用户授权通知监听权限
+    private void requestNotificationListenerPermission() {
+        Intent intent = new Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS);
+        startActivityForResult(intent, REQUEST_NOTIFICATION_ACCESS);
+
     }
 
     private void readNotificationsFromDatabase() {
@@ -126,6 +141,8 @@ public class MainActivity extends AppCompatActivity {
                 "timestamp DESC"  // ORDER BY 子句
         );
 
+        int count = cursor.getCount(); // 获取总通知数量
+
         // 將查詢結果加入到 notifications 中
         while (cursor.moveToNext()) {
             String timeStamp = cursor.getString(cursor.getColumnIndexOrThrow("timestamp"));
@@ -135,7 +152,7 @@ public class MainActivity extends AppCompatActivity {
             // 取得 packageName 最後一個逗點後面的英文部分
             String appName = packageName.substring(packageName.lastIndexOf(".") + 1);
 
-            String notificationTitle = appName + "\n" + timeStamp + "\n" + title;
+            String notificationTitle = count-- + " " +appName + "\n" + timeStamp + "\n" + title;
             String notificationContent = content;
             String notificationInfo = notificationTitle + "\n " + notificationContent;
             notifications.add(notificationInfo);
@@ -165,31 +182,43 @@ public class MainActivity extends AppCompatActivity {
         return false;
     }
 
-    private void requestNotificationPermission() {
-
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP_MR1) {
-            NotificationManager notificationManager = getSystemService(NotificationManager.class);
-            if (notificationManager != null) {
-                ComponentName cn = new ComponentName(this, NotificationReceiver.class);
-                if (!notificationManager.isNotificationListenerAccessGranted(cn)) {
-                    Intent intent = new Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS);
-                    startActivity(intent);
-                }
-            }
-        }
-    }
 
     @Override
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+
         super.onActivityResult(requestCode, resultCode, data);
-        if (requestCode == REQUEST_CODE_NOTIFICATION_PERMISSION) {
-            // 检查通知权限是否已开启
-            if (isNotificationPermissionEnabled()) {
-                // 通知权限已开启，可以执行相应操作
+        if (requestCode == REQUEST_NOTIFICATION_ACCESS) {
+            if (isNotificationListenerEnabled()) {
+                startNotificationReceiverService();
             } else {
-                // 通知权限未开启，可以给出提示或处理逻辑
+                Toast.makeText(this, "未授予通知监听权限，无法启动服务", Toast.LENGTH_SHORT).show();
             }
         }
     }
+
+    // 检查通知监听权限是否已经授予
+    private boolean isNotificationListenerEnabled() {
+        ComponentName cn = new ComponentName(this, NotificationReceiver.class);
+        String flat = Settings.Secure.getString(getContentResolver(), "enabled_notification_listeners");
+        return flat != null && flat.contains(cn.flattenToString());
+    }
+
+    // 启动NotificationReceiver服务
+    private void startNotificationReceiverService() {
+        Intent intent = new Intent(this, NotificationReceiver.class);
+        //startService(intent);
+
+        startForegroundService(intent);
+    }
+
+
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+
+    }
+
+
 
 }

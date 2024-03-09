@@ -51,6 +51,8 @@ public class NotificationReceiver extends NotificationListenerService {
         this.notificationList = notificationList;
         this.notificationAdapter = notificationAdapter;
     }
+
+
     @Override
     public void onNotificationPosted(StatusBarNotification sbn) {
 
@@ -58,7 +60,7 @@ public class NotificationReceiver extends NotificationListenerService {
 
             String timeStamp = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault()).format(new Date());
 
-            String appName =getAppNameFromPackage(sbn.getPackageName());
+            String appName =sbn.getPackageName();
             if (appName.equals("jp.naver.line.android")
                     || appName.equals("com.google.android.youtube")
                   //  || appName.equals("com.instagram.android")
@@ -74,6 +76,23 @@ public class NotificationReceiver extends NotificationListenerService {
 
             // 正則表達式，不論大小寫，匹配 "colin" 這個單詞
             Pattern pattern = Pattern.compile("colin", Pattern.CASE_INSENSITIVE);
+
+            boolean containsTeams = appName.equals("com.google.android.gm")
+                    && notificationTitle != null && (notificationTitle.contains("Martin")
+                    || notificationTitle.contains("Zumi")
+                    || notificationTitle.contains("Yuki")
+                    || notificationTitle.contains("Christy")
+                    || notificationTitle.contains("Nick")
+                    || notificationTitle.contains("Ken")
+                    || notificationTitle.contains("Chinsheng")
+                    || notificationTitle.contains("YuHsiang")
+                    || notificationTitle.contains("Ted")
+                    || notificationTitle.contains("JianKai")
+                    || notificationTitle.contains("David")
+                    || notificationTitle.contains("Ben")
+                    || notificationTitle.contains("Ted")
+            );
+
             Matcher titleMatcher = pattern.matcher(notificationTitle);
             Matcher contentMatcher = pattern.matcher(notificationContent);
 
@@ -84,7 +103,7 @@ public class NotificationReceiver extends NotificationListenerService {
             SpannableString spannableTitle = new SpannableString(notificationTitle);
             SpannableString spannableContent = new SpannableString(notificationContent);
 
-            if (containsColin) {
+            if (containsColin || containsTeams) {
                 // 如果通知中包含 "colin" 這個單詞，將字體設定為紅色和粗體
                 int colinColor = Color.RED;
                 StyleSpan boldSpan = new StyleSpan(android.graphics.Typeface.BOLD);
@@ -116,17 +135,22 @@ public class NotificationReceiver extends NotificationListenerService {
     }
 
     private String getAppNameFromPackage(String packageName) {
+
+
+
         PackageManager packageManager = getApplicationContext().getPackageManager();
         try {
             ApplicationInfo applicationInfo = packageManager.getApplicationInfo(packageName, 0);
             return (String) packageManager.getApplicationLabel(applicationInfo);
         } catch (PackageManager.NameNotFoundException e) {
             e.printStackTrace();
-            return packageName;
+            // 返回默认值或者处理其他逻辑
+            return "Unknown"; // 例如返回一个默认值
         }
     }
     public static void addNotification(String notificationInfo) {
         notificationList.add(notificationInfo);
+        notificationAdapter.notifyDataSetChanged();
     }
 
     @Override
