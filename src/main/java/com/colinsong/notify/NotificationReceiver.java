@@ -1,10 +1,13 @@
 package com.colinsong.notify;
 
 import android.app.Notification;
+import android.app.PendingIntent;
 import android.content.ContentValues;
+import android.content.Intent;
 import android.content.pm.ApplicationInfo;
 import android.content.pm.PackageManager;
 import android.database.sqlite.SQLiteDatabase;
+import android.os.Build;
 import android.service.notification.NotificationListenerService;
 import android.service.notification.StatusBarNotification;
 import android.graphics.Color;
@@ -30,10 +33,24 @@ import android.content.Context;
 import android.media.MediaPlayer;
 import android.text.TextUtils;
 
+import android.app.Notification;
+import android.app.NotificationChannel;
+import android.app.NotificationManager;
+import android.app.Service;
+import android.content.Context;
+import android.content.Intent;
+import android.graphics.Color;
+import android.os.Handler;
+import android.os.IBinder;
+import android.os.Message;
+import android.util.Log;
+import android.widget.Toast;
+
 import android.os.Bundle;
 import android.service.notification.NotificationListenerService;
 import android.service.notification.StatusBarNotification;
 
+import androidx.core.app.NotificationCompat;
 import androidx.lifecycle.MutableLiveData;
 
 public class NotificationReceiver extends NotificationListenerService {
@@ -43,7 +60,6 @@ public class NotificationReceiver extends NotificationListenerService {
     private static NotificationAdapter notificationAdapter;
 
     public NotificationReceiver() {
-        // 空的無參數構造函數
 
     }
 
@@ -55,6 +71,7 @@ public class NotificationReceiver extends NotificationListenerService {
 
     @Override
     public void onNotificationPosted(StatusBarNotification sbn) {
+
 
         if (this.notificationList != null && this.notificationAdapter != null) {
 
@@ -131,7 +148,65 @@ public class NotificationReceiver extends NotificationListenerService {
             writeToDatabase(appName, notificationTitle, notificationContent, timeStamp);
 
 
+            createNotificationChannel(notificationTitle, notificationContent);
+
         }
+
+
+    }
+
+
+
+    private void createNotificationChannel(String notificationTitle, String notificationContent)  {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            String channelId = "my_channel_id";
+            CharSequence channelName = "My Channel";
+            int importance = NotificationManager.IMPORTANCE_DEFAULT;
+
+            // 創建一個意圖，指定要進入的Activity
+            Intent intent = new Intent(this, MainActivity.class);
+            // 將意圖設置為PendingIntent，並使用getActivity()方法
+            PendingIntent pendingIntent = PendingIntent.getActivity(this, 0, intent, PendingIntent.FLAG_IMMUTABLE);
+
+
+
+            NotificationChannel channel = new NotificationChannel(channelId, channelName, importance);
+
+            NotificationManager notificationManager = getSystemService(NotificationManager.class);
+            notificationManager.createNotificationChannel(channel);
+
+            // Create a notification for the foreground service
+            Notification notification = new NotificationCompat.Builder(this, channelId)
+                    .setContentTitle(notificationTitle)
+                    .setContentIntent(pendingIntent) // 設置PendingIntent
+                    .setContentText(notificationContent)
+                    .setSmallIcon(R.drawable.ic_home_black_24dp)
+                    .build();
+
+            // Start the service as a foreground service
+
+            if (!isServiceRunningInForeground()) {
+                // 如果服務還不是前台服務，則調用 startForeground()
+                startForeground(1, notification);
+            }
+
+        }
+    }
+
+    private boolean isServiceRunningInForeground() {
+        // 取得通知管理器
+        NotificationManager manager = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
+
+        // 檢查是否存在與你的服務相關聯的通知
+        if (manager != null) {
+            for (StatusBarNotification notification : manager.getActiveNotifications()) {
+                // 檢查通知是否與你的服務相關聯
+                if (notification.getId() == 1) { // 替換 YOUR_NOTIFICATION_ID 為你的通知 ID
+                    return true; // 如果存在相關聯的通知，則服務處於前台狀態
+                }
+            }
+        }
+        return false; // 如果沒有相關聯的通知，則服務不處於前台狀態
     }
 
     private String getAppNameFromPackage(String packageName) {

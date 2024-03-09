@@ -38,6 +38,7 @@ public class MainActivity extends AppCompatActivity {
     private NotificationReceiver notificationReceiver;
     private ActivityMainBinding binding;
     private MyDatabaseHelper dbHelper;
+    private boolean isServiceRunningForeground = false;
 
     // 創建ViewModel成員變量
     private NotificationViewModel notificationViewModel;
@@ -205,10 +206,17 @@ public class MainActivity extends AppCompatActivity {
 
     // 启动NotificationReceiver服务
     private void startNotificationReceiverService() {
-        Intent intent = new Intent(this, NotificationReceiver.class);
-        //startService(intent);
 
-        startForegroundService(intent);
+
+
+            // 檢查服務是否已經處於前台，如果是，則不需要再次啟動前台服務
+            if (!isServiceRunningForeground) {
+                Intent intent = new Intent(this, NotificationReceiver.class);
+
+                startForegroundService(intent);
+                isServiceRunningForeground = true;
+            }
+
     }
 
 

@@ -10,6 +10,8 @@
         android:name="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE"
         tools:ignore="ProtectedPermissions" />
     <uses-permission android:name="android.permission.BROADCAST_SEND" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
 
     <application
         android:allowBackup="true"
@@ -22,8 +24,9 @@
         android:theme="@style/Theme.Notify"
         tools:targetApi="31">
         <service
-            android:name=".MyService"
-            android:exported="false"></service>
+            android:name=".FloatingWindowService"
+            android:enabled="true"
+            android:exported="true"></service>
 
         <activity
             android:name=".MainActivity"
