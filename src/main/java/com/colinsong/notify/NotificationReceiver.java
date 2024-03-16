@@ -2,6 +2,7 @@ package com.colinsong.notify;
 
 import android.app.Notification;
 import android.app.PendingIntent;
+import android.content.ComponentName;
 import android.content.ContentValues;
 import android.content.Intent;
 import android.content.pm.ApplicationInfo;
@@ -67,6 +68,33 @@ public class NotificationReceiver extends NotificationListenerService {
         this.notificationList = notificationList;
         this.notificationAdapter = notificationAdapter;
     }
+
+    /**
+     * 监听断开
+     */
+    @Override
+    public void onListenerDisconnected() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+            // 通知侦听器断开连接 - 请求重新绑定
+            requestRebind(new ComponentName(this, NotificationReceiver.class));
+        }
+    }
+
+
+    @Override
+    public void onCreate() {
+        super.onCreate();
+
+
+    }
+
+    public void setForeground() {
+        // 創建通知
+      //  createNotificationChannel(1, "hello", "ccc");
+
+    }
+
+
 
 
     @Override
@@ -148,7 +176,11 @@ public class NotificationReceiver extends NotificationListenerService {
             writeToDatabase(appName, notificationTitle, notificationContent, timeStamp);
 
 
-            createNotificationChannel(notificationTitle, notificationContent);
+           // createNotificationChannel(1, notificationTitle, notificationContent);
+
+
+
+
 
         }
 
@@ -157,43 +189,43 @@ public class NotificationReceiver extends NotificationListenerService {
 
 
 
-    private void createNotificationChannel(String notificationTitle, String notificationContent)  {
+    private void createNotificationChannel(int sbn, String notificationTitle, String notificationContent)  {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            String channelId = "my_channel_id";
-            CharSequence channelName = "My Channel";
-            int importance = NotificationManager.IMPORTANCE_DEFAULT;
-
-            // 創建一個意圖，指定要進入的Activity
-            Intent intent = new Intent(this, MainActivity.class);
-            // 將意圖設置為PendingIntent，並使用getActivity()方法
-            PendingIntent pendingIntent = PendingIntent.getActivity(this, 0, intent, PendingIntent.FLAG_IMMUTABLE);
-
-
-
-            NotificationChannel channel = new NotificationChannel(channelId, channelName, importance);
-
-            NotificationManager notificationManager = getSystemService(NotificationManager.class);
-            notificationManager.createNotificationChannel(channel);
-
-            // Create a notification for the foreground service
-            Notification notification = new NotificationCompat.Builder(this, channelId)
-                    .setContentTitle(notificationTitle)
-                    .setContentIntent(pendingIntent) // 設置PendingIntent
-                    .setContentText(notificationContent)
-                    .setSmallIcon(R.drawable.ic_home_black_24dp)
-                    .build();
 
             // Start the service as a foreground service
 
-            if (!isServiceRunningInForeground()) {
+
+                String channelId = "my_channel_id";
+                CharSequence channelName = "My Channel";
+                int importance = NotificationManager.IMPORTANCE_DEFAULT;
+                NotificationChannel channel = new NotificationChannel(channelId, channelName, importance);
+
+                NotificationManager notificationManager = getSystemService(NotificationManager.class);
+                notificationManager.createNotificationChannel(channel);
+                // 創建一個意圖，指定要進入的Activity
+                Intent intent = new Intent(this, MainActivity.class);
+                // 將意圖設置為PendingIntent，並使用getActivity()方法
+                PendingIntent pendingIntent = PendingIntent.getActivity(this, 0, intent, PendingIntent.FLAG_IMMUTABLE);
+
+
+                // Create a notification for the foreground service
+                Notification notification = new NotificationCompat.Builder(this, channelId)
+                        .setContentTitle(notificationTitle)
+                        .setContentIntent(pendingIntent) // 設置PendingIntent
+                        .setContentText(notificationContent)
+                        .setSmallIcon(R.drawable.ic_home_black_24dp)
+                        .build();
+
+
+            if (!isServiceRunningInForeground(1)) {
                 // 如果服務還不是前台服務，則調用 startForeground()
                 startForeground(1, notification);
             }
-
         }
     }
 
-    private boolean isServiceRunningInForeground() {
+
+    private boolean isServiceRunningInForeground(int sbn) {
         // 取得通知管理器
         NotificationManager manager = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
 
@@ -223,8 +255,9 @@ public class NotificationReceiver extends NotificationListenerService {
             return "Unknown"; // 例如返回一个默认值
         }
     }
-    public static void addNotification(String notificationInfo) {
+    public  void addNotification(String notificationInfo) {
         notificationList.add(notificationInfo);
+
         notificationAdapter.notifyDataSetChanged();
     }
 
