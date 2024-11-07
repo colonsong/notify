@@ -1,5 +1,6 @@
 package com.colinsong.notify;
 
+import android.app.AlertDialog;
 import android.app.Notification;
 import android.app.NotificationManager;
 import android.content.ComponentName;
@@ -11,9 +12,11 @@ import android.os.Bundle;
 import android.provider.Settings;
 import android.view.View;
 import android.widget.Button;
+import android.widget.Toast;
 
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.app.NotificationCompat;
+import androidx.core.app.NotificationManagerCompat;
 import androidx.lifecycle.MutableLiveData;
 import androidx.lifecycle.Observer;
 import androidx.lifecycle.ViewModelProvider;
@@ -40,8 +43,7 @@ public class MainActivity extends AppCompatActivity {
     private NotificationViewModel notificationViewModel;
     private MutableLiveData<List<String>> notificationLiveData = new MutableLiveData<>();
 
-
-
+    private static final int NOTIFICATION_ID_PERMISSION_REMINDER = 1;
     private static final int REQUEST_CODE_NOTIFICATION_PERMISSION = 200;
 
     @Override
@@ -69,6 +71,13 @@ public class MainActivity extends AppCompatActivity {
         notificationReceiver = new NotificationReceiver(notificationList, notificationAdapter);
 
         Button sendNotificationButton = binding.sendNotificationButton;
+
+        Intent serviceIntent = new Intent(this, NotificationReceiver.class);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            startForegroundService(serviceIntent);
+        } else {
+            startService(serviceIntent);
+        }
         sendNotificationButton.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
@@ -126,6 +135,8 @@ public class MainActivity extends AppCompatActivity {
                 "timestamp DESC"  // ORDER BY 子句
         );
 
+        int count = cursor.getCount(); // 获取总通知数量
+
         // 將查詢結果加入到 notifications 中
         while (cursor.moveToNext()) {
             String timeStamp = cursor.getString(cursor.getColumnIndexOrThrow("timestamp"));
@@ -135,7 +146,7 @@ public class MainActivity extends AppCompatActivity {
             // 取得 packageName 最後一個逗點後面的英文部分
             String appName = packageName.substring(packageName.lastIndexOf(".") + 1);
 
-            String notificationTitle = appName + "\n" + timeStamp + "\n" + title;
+            String notificationTitle = count-- + " " +appName + "\n" + timeStamp + "\n" + title;
             String notificationContent = content;
             String notificationInfo = notificationTitle + "\n " + notificationContent;
             notifications.add(notificationInfo);
@@ -174,7 +185,7 @@ public class MainActivity extends AppCompatActivity {
                 if (!notificationManager.isNotificationListenerAccessGranted(cn)) {
                     Intent intent = new Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS);
                     startActivity(intent);
-                }
+               }
             }
         }
     }
@@ -182,14 +193,36 @@ public class MainActivity extends AppCompatActivity {
     @Override
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
+
         if (requestCode == REQUEST_CODE_NOTIFICATION_PERMISSION) {
             // 检查通知权限是否已开启
             if (isNotificationPermissionEnabled()) {
                 // 通知权限已开启，可以执行相应操作
             } else {
                 // 通知权限未开启，可以给出提示或处理逻辑
+                Toast.makeText(this, "通知权限未开启。", Toast.LENGTH_LONG).show();
             }
         }
     }
+
+
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+
+        // 检查通知监听权限是否已开启
+        if (isNotificationPermissionEnabled()) {
+            // 通知监听权限已开启，执行相应操作
+            // 在这里可以执行你希望在应用恢复到前台时执行的逻辑
+            requestNotificationPermission();
+        } else {
+            // 通知监听权限未开启，跳转到设置页面请求开启
+
+            requestNotificationPermission();
+        }
+    }
+
+
 
 }

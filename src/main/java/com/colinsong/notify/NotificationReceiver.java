@@ -1,10 +1,15 @@
 package com.colinsong.notify;
 
 import android.app.Notification;
+import android.app.NotificationChannel;
+import android.app.NotificationManager;
 import android.content.ContentValues;
+import android.content.Intent;
 import android.content.pm.ApplicationInfo;
 import android.content.pm.PackageManager;
 import android.database.sqlite.SQLiteDatabase;
+import android.os.Build;
+import android.os.IBinder;
 import android.service.notification.NotificationListenerService;
 import android.service.notification.StatusBarNotification;
 import android.graphics.Color;
@@ -34,9 +39,12 @@ import android.os.Bundle;
 import android.service.notification.NotificationListenerService;
 import android.service.notification.StatusBarNotification;
 
+import androidx.core.app.NotificationCompat;
 import androidx.lifecycle.MutableLiveData;
 
 public class NotificationReceiver extends NotificationListenerService {
+    private static final int ONGOING_NOTIFICATION_ID = 1001;
+    private static final String CHANNEL_ID = "foreground_service_channel";
     private MutableLiveData<List<String>> notificationLiveData = new MutableLiveData<>();
     private MyDatabaseHelper dbHelper;
     private static List<String> notificationList;
@@ -45,6 +53,49 @@ public class NotificationReceiver extends NotificationListenerService {
     public NotificationReceiver() {
         // 空的無參數構造函數
 
+    }
+
+    @Override
+    public void onCreate() {
+        super.onCreate();
+
+        // 建立 NotificationChannel 並啟動 Foreground Service
+        createNotificationChannel();
+        startForeground(ONGOING_NOTIFICATION_ID, createNotification("服務正在運行"));
+    }
+
+    private void createNotificationChannel() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            NotificationChannel channel = new NotificationChannel(
+                    CHANNEL_ID,
+                    "前景服務通知頻道",
+                    NotificationManager.IMPORTANCE_LOW
+            );
+            NotificationManager manager = getSystemService(NotificationManager.class);
+            if (manager != null) {
+                manager.createNotificationChannel(channel);
+            }
+        }
+    }
+
+    private Notification createNotification(String content) {
+        return new NotificationCompat.Builder(this, CHANNEL_ID)
+                .setContentTitle("監聽通知服務")
+                .setContentText(content)
+                .setSmallIcon(R.drawable.ic_notification) // 確認有有效的圖標
+                .setPriority(NotificationCompat.PRIORITY_LOW)
+                .build();
+    }
+
+    @Override
+    public IBinder onBind(Intent intent) {
+        return super.onBind(intent);
+    }
+
+    @Override
+    public void onDestroy() {
+        super.onDestroy();
+        stopForeground(true);
     }
 
     public NotificationReceiver(List<String> notificationList, NotificationAdapter notificationAdapter) {
@@ -74,6 +125,23 @@ public class NotificationReceiver extends NotificationListenerService {
 
             // 正則表達式，不論大小寫，匹配 "colin" 這個單詞
             Pattern pattern = Pattern.compile("colin", Pattern.CASE_INSENSITIVE);
+
+            boolean containsTeams = appName.equals("com.google.android.gm")
+                    && notificationTitle != null && (notificationTitle.contains("Martin")
+                    || notificationTitle.contains("Zumi")
+                    || notificationTitle.contains("Yuki")
+                    || notificationTitle.contains("Christy")
+                    || notificationTitle.contains("Nick")
+                    || notificationTitle.contains("Ken")
+                    || notificationTitle.contains("Chinsheng")
+                    || notificationTitle.contains("YuHsiang")
+                    || notificationTitle.contains("Ted")
+                    || notificationTitle.contains("JianKai")
+                    || notificationTitle.contains("David")
+                    || notificationTitle.contains("Ben")
+                    || notificationTitle.contains("Ted")
+            );
+
             Matcher titleMatcher = pattern.matcher(notificationTitle);
             Matcher contentMatcher = pattern.matcher(notificationContent);
 
@@ -84,7 +152,7 @@ public class NotificationReceiver extends NotificationListenerService {
             SpannableString spannableTitle = new SpannableString(notificationTitle);
             SpannableString spannableContent = new SpannableString(notificationContent);
 
-            if (containsColin) {
+            if (containsColin || containsTeams) {
                 // 如果通知中包含 "colin" 這個單詞，將字體設定為紅色和粗體
                 int colinColor = Color.RED;
                 StyleSpan boldSpan = new StyleSpan(android.graphics.Typeface.BOLD);
@@ -127,6 +195,7 @@ public class NotificationReceiver extends NotificationListenerService {
     }
     public static void addNotification(String notificationInfo) {
         notificationList.add(notificationInfo);
+        notificationAdapter.notifyDataSetChanged();
     }
 
     @Override
