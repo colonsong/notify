@@ -9,6 +9,8 @@ import android.content.Intent;
 import android.content.pm.ApplicationInfo;
 import android.content.pm.PackageManager;
 import android.database.sqlite.SQLiteDatabase;
+import android.graphics.Color;
+import android.media.MediaPlayer;
 import android.os.Build;
 import android.os.Handler;
 import android.os.IBinder;
@@ -16,27 +18,23 @@ import android.os.PowerManager;
 import android.provider.AlarmClock;
 import android.service.notification.NotificationListenerService;
 import android.service.notification.StatusBarNotification;
-import android.graphics.Color;
 import android.text.Spannable;
 import android.text.SpannableString;
+import android.text.TextUtils;
 import android.text.style.ForegroundColorSpan;
 import android.text.style.StyleSpan;
-import android.text.TextUtils;
 import android.util.Log;
+
+import androidx.core.app.NotificationCompat;
+import androidx.lifecycle.MutableLiveData;
 
 import java.text.SimpleDateFormat;
 import java.util.Calendar;
 import java.util.Date;
+import java.util.List;
 import java.util.Locale;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-import java.util.ArrayList;
-import java.util.List;
-import android.content.Context;
-import android.media.MediaPlayer;
-
-import androidx.core.app.NotificationCompat;
-import androidx.lifecycle.MutableLiveData;
 
 public class NotificationReceiver extends NotificationListenerService {
     private static final String TAG = "NotificationReceiver";
@@ -282,7 +280,7 @@ public class NotificationReceiver extends NotificationListenerService {
                 SpannableString spannableTitle = new SpannableString(notificationTitle);
                 SpannableString spannableContent = new SpannableString(notificationContent);
 
-                if ((containsColin || containsTeams) && isGoogleChat) {
+                if (( isGoogleChat) ) {
                     // 如果通知中包含 "colin" 這個單詞，將字體設定為紅色和粗體
                     int colinColor = Color.RED;
                     StyleSpan boldSpan = new StyleSpan(android.graphics.Typeface.BOLD);
@@ -299,7 +297,10 @@ public class NotificationReceiver extends NotificationListenerService {
                     }
 
                     Log.d(TAG, "觸發鈴聲通知");
-                    triggerRingtone();
+                    if ( containsColin) {
+                        triggerRingtone();
+                    }
+
                 }
 
                 // 組合通知標題和內容，並加入到通知列表
