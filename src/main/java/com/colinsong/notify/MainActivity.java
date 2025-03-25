@@ -25,15 +25,18 @@ import android.widget.Button;
 import android.widget.Toast;
 
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.fragment.app.Fragment;
 import androidx.lifecycle.MutableLiveData;
 import androidx.lifecycle.Observer;
 import androidx.lifecycle.ViewModelProvider;
+import androidx.navigation.NavController;
+import androidx.navigation.Navigation;
+import androidx.navigation.fragment.NavHostFragment;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
 import com.colinsong.notify.databinding.ActivityMainBinding;
 import com.colinsong.notify.ui.dashboard.DashboardFragment;
-import com.colinsong.notify.ui.home.HomeFragment;
 import com.colinsong.notify.ui.notifications.NotificationsFragment;
 
 import java.text.ParseException;
@@ -624,6 +627,7 @@ public class MainActivity extends AppCompatActivity {
 
     // 在 MainActivity 中添加
     public void filterNotificationsByDate(String date) {
+        android.util.Log.d("MainActivity", "過濾日期: " + date);
         // 讀取指定日期的通知
         readNotificationsFromDatabaseByDate(date);
 
@@ -760,6 +764,27 @@ public class MainActivity extends AppCompatActivity {
                 .commit();
     }
 
+    public List<NotificationItem> getNotificationItemList() {
+        return notificationItemList;
+    }
+
+    // 添加更新通知的方法
+    public void updateNotifications() {
+        // 查找 NavController 然後獲取當前 Fragment
+        NavController navController = Navigation.findNavController(this, R.id.nav_host_fragment_activity_main);
+
+        // 獲取當前的 NavHostFragment
+        Fragment navHostFragment = getSupportFragmentManager().findFragmentById(R.id.nav_host_fragment_activity_main);
+        if (navHostFragment != null) {
+            // 獲取當前顯示的 Fragment
+            NavHostFragment.findNavController(navHostFragment).getCurrentDestination();
+            Fragment currentFragment = navHostFragment.getChildFragmentManager().getPrimaryNavigationFragment();
+            if (currentFragment instanceof HomeFragment) {
+                ((HomeFragment) currentFragment).updateNotifications();
+            }
+        }
+    }
+
     @Override
     protected void onDestroy() {
         super.onDestroy();
@@ -771,4 +796,6 @@ public class MainActivity extends AppCompatActivity {
 
         Log.i(TAG, "MainActivity onDestroy");
     }
+
+
 }

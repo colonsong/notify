@@ -1,3 +1,5 @@
+package com.colinsong.notify;
+
 import android.database.Cursor;
 import android.database.sqlite.SQLiteDatabase;
 import android.os.Bundle;
@@ -10,10 +12,6 @@ import androidx.annotation.NonNull;
 import androidx.fragment.app.Fragment;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
-
-import com.colinsong.notify.MainActivity;
-import com.colinsong.notify.MyDatabaseHelper;
-import com.colinsong.notify.R;
 
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
@@ -36,37 +34,54 @@ public class DashboardFragment extends Fragment {
 
         dbHelper = MyDatabaseHelper.getInstance(getContext());
 
-        // 加載日期數據
-        loadDateData();
-
-        // 設置適配器
+        // 初始化空的適配器
+        dateItems = new ArrayList<>();
         dateAdapter = new DashboardAdapter(dateItems);
         dateRecyclerView.setAdapter(dateAdapter);
 
+        // 載入數據（在適配器設置後調用）
+        loadDateData();
+
+        // 通知適配器數據已更新
+        dateAdapter.notifyDataSetChanged();
+
         return view;
     }
-
     private void loadDateData() {
-        // 從數據庫讀取不同的日期和每天的通知數量
-        SQLiteDatabase db = dbHelper.getReadableDatabase();
+        try {
+            // 從數據庫讀取不同的日期和每天的通知數量
+            SQLiteDatabase db = dbHelper.getReadableDatabase();
 
-        Cursor cursor = db.rawQuery(
-                "SELECT substr(timestamp, 1, 10) as date, COUNT(*) as count " +
-                        "FROM messages " +
-                        "GROUP BY substr(timestamp, 1, 10) " +
-                        "ORDER BY date DESC", null);
+            Cursor cursor = db.rawQuery(
+                    "SELECT substr(timestamp, 1, 10) as date, COUNT(*) as count " +
+                            "FROM messages " +
+                            "GROUP BY substr(timestamp, 1, 10) " +
+                            "ORDER BY date DESC", null);
 
-        dateItems.clear();
+            int totalCount = cursor.getCount();
+            android.util.Log.d("DashboardFragment", "找到 " + totalCount + " 個日期分組");
 
-        while (cursor.moveToNext()) {
-            String date = cursor.getString(cursor.getColumnIndexOrThrow("date"));
-            int count = cursor.getInt(cursor.getColumnIndexOrThrow("count"));
+            dateItems.clear();
 
-            dateItems.add(new DateItem(date, count));
+            while (cursor.moveToNext()) {
+                String date = cursor.getString(cursor.getColumnIndexOrThrow("date"));
+                int count = cursor.getInt(cursor.getColumnIndexOrThrow("count"));
+
+                android.util.Log.d("DashboardFragment", "日期: " + date + ", 通知數量: " + count);
+                dateItems.add(new DateItem(date, count));
+            }
+
+            cursor.close();
+            db.close();
+
+            // 檢查數據是否為空
+            if (dateItems.isEmpty()) {
+                android.util.Log.w("DashboardFragment", "沒有找到任何日期分組數據");
+            }
+        } catch (Exception e) {
+            android.util.Log.e("DashboardFragment", "加載日期數據時出錯: " + e.getMessage());
+            e.printStackTrace();
         }
-
-        cursor.close();
-        db.close();
     }
 
     // 日期適配器
