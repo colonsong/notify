@@ -1,11 +1,13 @@
 package com.colinsong.notify;
 
+import androidx.cardview.widget.CardView;
 import androidx.recyclerview.widget.RecyclerView;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
 
+import android.graphics.Typeface;
 import android.widget.TextView;
 import android.view.View;
 import androidx.annotation.NonNull;
@@ -13,18 +15,17 @@ import android.view.ViewGroup;
 import android.view.LayoutInflater;
 import android.text.SpannableString;
 import android.text.Spannable;
-import android.text.SpannableString;
 import android.text.style.ForegroundColorSpan;
 import android.graphics.Color;
+import android.util.Log;
 
 
 public class NotificationAdapter extends RecyclerView.Adapter<NotificationAdapter.ViewHolder> {
-    private List<String> notificationList;
-    private List<Integer> backgroundColors;
-    public NotificationAdapter(List<String> notificationList) {
-        this.notificationList = notificationList;
+    private static final String TAG = "NotificationAdapter";
+    private List<NotificationItem> notificationList;
 
-
+    public NotificationAdapter(List<NotificationItem> notificationList) {
+        this.notificationList = notificationList != null ? notificationList : new ArrayList<>();
     }
 
     @NonNull
@@ -34,55 +35,111 @@ public class NotificationAdapter extends RecyclerView.Adapter<NotificationAdapte
         return new ViewHolder(view);
     }
 
-    // 產生隨機半透明顏色的方法
-    private int getRandomColor() {
-        Random random = new Random();
-        int alpha = 32; // 設定 alpha 值為 128，使顏色半透明
-        int red = random.nextInt(256);
-        int green = random.nextInt(256);
-        int blue = random.nextInt(256);
-        return Color.argb(alpha, red, green, blue);
-    }
-
     @Override
     public void onBindViewHolder(@NonNull ViewHolder holder, int position) {
-        String notificationContent = notificationList.get(position);
-        SpannableString spannableNotification = new SpannableString(notificationContent);
+        try {
+            NotificationItem item = notificationList.get(position);
 
-        // 設定背景顏色
-        // 設定隨機背景顏色
-        int randomColor = getRandomColor();
-        holder.itemView.setBackgroundColor(randomColor);
+            // 設置 ID 和應用名稱
+            holder.appNameTextView.setText(String.format("%d. %s", item.getId(), item.getAppName()));
 
+            // 設置時間戳
+            holder.timeTextView.setText(item.getTimestamp());
 
+            // 設置標題和內容
+            if (item.getTitle() != null && !item.getTitle().isEmpty()) {
+                holder.titleTextView.setVisibility(View.VISIBLE);
+                holder.titleTextView.setText(item.getTitle());
+            } else {
+                holder.titleTextView.setVisibility(View.GONE);
+            }
 
-        // 檢查通知內容是否包含 "colin" 這個單詞，如果包含，設置字體顏色
-        if (notificationContent.toLowerCase().contains("colin")) {
-            int colinColor = Color.RED;
-            ForegroundColorSpan colorSpan = new ForegroundColorSpan(colinColor);
-            spannableNotification.setSpan(colorSpan, 0, notificationContent.length(), Spannable.SPAN_INCLUSIVE_INCLUSIVE);
+            if (item.getContent() != null) {
+                holder.contentTextView.setText(item.getContent());
+            } else {
+                holder.contentTextView.setText("");
+            }
+
+            // 設置隨機背景色 (淺色)
+            int color = getRandomPastelColor();
+            if (holder.cardView != null) {
+                holder.cardView.setCardBackgroundColor(color);
+            }
+
+            // 檢查是否包含特定關鍵字
+            boolean containsKeyword = false;
+            if (item.getTitle() != null && item.getTitle().toLowerCase().contains("colin")) {
+                containsKeyword = true;
+            }
+            if (item.getContent() != null && item.getContent().toLowerCase().contains("colin")) {
+                containsKeyword = true;
+            }
+
+            // 如果包含特定關鍵字，設置高亮顯示
+            if (containsKeyword) {
+                if (holder.cardView != null) {
+                    holder.cardView.setCardBackgroundColor(Color.parseColor("#FFF4E5")); // 溫暖的背景色
+                }
+                holder.titleTextView.setTextColor(Color.RED);
+                holder.contentTextView.setTextColor(Color.RED);
+                holder.contentTextView.setTypeface(holder.contentTextView.getTypeface(), Typeface.BOLD);
+            } else {
+                holder.titleTextView.setTextColor(Color.parseColor("#333333"));
+                holder.contentTextView.setTextColor(Color.parseColor("#666666"));
+                holder.contentTextView.setTypeface(null, Typeface.NORMAL);
+            }
+        } catch (Exception e) {
+            Log.e(TAG, "綁定視圖時出錯: " + e.getMessage());
         }
-
-        // 設置Item間距，這裡使用RecyclerView的ItemDecoration來添加間距
-        if (position != 0) {
-            int spacingInPixels = 16; // 設置間距大小（單位：像素）
-            holder.itemView.setPadding(0, spacingInPixels, 0, 0);
-        }
-
-        holder.notificationTextView.setText(spannableNotification);
     }
 
     @Override
     public int getItemCount() {
-        return notificationList.size();
+        return notificationList != null ? notificationList.size() : 0;
     }
 
-    public static class ViewHolder extends RecyclerView.ViewHolder {
-        public TextView notificationTextView;
+    // 產生隨機柔和顏色
+    private int getRandomPastelColor() {
+        // 產生較淺的顏色
+        Random random = new Random();
+        final int baseRed = 230;   // 基礎紅色值 (較高意味著顏色較淺)
+        final int baseGreen = 230; // 基礎綠色值
+        final int baseBlue = 230;  // 基礎藍色值
+        final int range = 25;      // 顏色變化範圍
 
-        public ViewHolder(View itemView) {
+        int red = baseRed - random.nextInt(range);
+        int green = baseGreen - random.nextInt(range);
+        int blue = baseBlue - random.nextInt(range);
+
+        return Color.rgb(red, green, blue);
+    }
+
+    static class ViewHolder extends RecyclerView.ViewHolder {
+        TextView appNameTextView;
+        TextView timeTextView;
+        TextView titleTextView;
+        TextView contentTextView;
+        CardView cardView;
+
+        ViewHolder(View itemView) {
             super(itemView);
-            notificationTextView = itemView.findViewById(R.id.notificationTextView);
+            try {
+                // 嘗試兩種方式：
+                // 1. 如果 itemView 本身是 CardView
+                if (itemView instanceof CardView) {
+                    cardView = (CardView) itemView;
+                } else {
+                    // 2. 在 itemView 中查找 CardView
+                    cardView = itemView.findViewById(R.id.cardView);
+                }
+
+                appNameTextView = itemView.findViewById(R.id.appNameTextView);
+                timeTextView = itemView.findViewById(R.id.timeTextView);
+                titleTextView = itemView.findViewById(R.id.titleTextView);
+                contentTextView = itemView.findViewById(R.id.contentTextView);
+            } catch (Exception e) {
+                Log.e("NotificationAdapter", "ViewHolder初始化錯誤: " + e.getMessage());
+            }
         }
     }
 }

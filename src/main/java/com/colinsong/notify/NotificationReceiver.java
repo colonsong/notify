@@ -13,6 +13,7 @@ import android.os.Build;
 import android.os.Handler;
 import android.os.IBinder;
 import android.os.PowerManager;
+import android.provider.AlarmClock;
 import android.service.notification.NotificationListenerService;
 import android.service.notification.StatusBarNotification;
 import android.graphics.Color;
@@ -24,6 +25,7 @@ import android.text.TextUtils;
 import android.util.Log;
 
 import java.text.SimpleDateFormat;
+import java.util.Calendar;
 import java.util.Date;
 import java.util.Locale;
 import java.util.regex.Matcher;
@@ -55,6 +57,7 @@ public class NotificationReceiver extends NotificationListenerService {
     @Override
     public void onCreate() {
         super.onCreate();
+        currentInstance = this;
         Log.i(TAG, "NotificationReceiver onCreate 開始");
 
         // 初始化資料庫 Helper
@@ -190,7 +193,14 @@ public class NotificationReceiver extends NotificationListenerService {
     @Override
     public void onDestroy() {
         Log.w(TAG, "NotificationReceiver 服務被終止，正在嘗試重新啟動");
-
+        if (mediaPlayer != null) {
+            if (mediaPlayer.isPlaying()) {
+                mediaPlayer.stop();
+            }
+            mediaPlayer.release();
+            mediaPlayer = null;
+        }
+        currentInstance = null;
         // 釋放喚醒鎖
         if (wakeLock != null && wakeLock.isHeld()) {
             wakeLock.release();
@@ -237,9 +247,9 @@ public class NotificationReceiver extends NotificationListenerService {
                 Log.d(TAG, "處理來自 " + appName + " 的通知");
 
                 // 略過某些應用程式的通知
-                if (appName.equals("jp.naver.line.android")
-                        || appName.equals("com.google.android.youtube")) {
-                    Log.d(TAG, "略過應用程式的通知: " + appName);
+                if (!appName.equals("Chat")) {
+                    // 如果不是 Chat，則跳過此通知
+                    Log.d(TAG, "不是 Chat 應用的通知，忽略: " + appName);
                     return;
                 }
 
@@ -254,24 +264,13 @@ public class NotificationReceiver extends NotificationListenerService {
                     return;
                 }
 
+
                 // 正則表達式，不論大小寫，匹配 "colin" 這個單詞
                 Pattern pattern = Pattern.compile("colin", Pattern.CASE_INSENSITIVE);
 
-                boolean containsTeams = appName.equals("com.google.android.gm")
-                        && notificationTitle != null && (notificationTitle.contains("Martin")
-                        || notificationTitle.contains("Zumi")
-                        || notificationTitle.contains("Yuki")
-                        || notificationTitle.contains("Christy")
-                        || notificationTitle.contains("Nick")
-                        || notificationTitle.contains("Ken")
-                        || notificationTitle.contains("Chinsheng")
-                        || notificationTitle.contains("YuHsiang")
-                        || notificationTitle.contains("Ted")
-                        || notificationTitle.contains("JianKai")
-                        || notificationTitle.contains("David")
-                        || notificationTitle.contains("Ben")
-                        || notificationTitle.contains("Ted")
-                );
+                boolean isGoogleChat = sbn.getPackageName().equals("com.google.android.apps.dynamite") ||
+                        sbn.getPackageName().equals("com.google.android.talk");
+                boolean containsTeams = false;
 
                 Matcher titleMatcher = pattern.matcher(notificationTitle);
                 Matcher contentMatcher = pattern.matcher(notificationContent);
@@ -283,7 +282,7 @@ public class NotificationReceiver extends NotificationListenerService {
                 SpannableString spannableTitle = new SpannableString(notificationTitle);
                 SpannableString spannableContent = new SpannableString(notificationContent);
 
-                if (containsColin || containsTeams) {
+                if ((containsColin || containsTeams) && isGoogleChat) {
                     // 如果通知中包含 "colin" 這個單詞，將字體設定為紅色和粗體
                     int colinColor = Color.RED;
                     StyleSpan boldSpan = new StyleSpan(android.graphics.Typeface.BOLD);
@@ -389,24 +388,78 @@ public class NotificationReceiver extends NotificationListenerService {
         Log.d(TAG, "通知已移除: " + sbn.getPackageName());
     }
 
+    private void triggerSystemAlarm() {
+        try {
+            // 設定鬧鐘時間為當前時間加5秒（可以根據需要調整）
+            Calendar calendar = Calendar.getInstance();
+            calendar.add(Calendar.SECOND, 1);
+
+            // 創建鬧鐘意圖
+            Intent alarmIntent = new Intent(AlarmClock.ACTION_SET_ALARM);
+            alarmIntent.putExtra(AlarmClock.EXTRA_MESSAGE, "通知觸發的鬧鐘");
+            alarmIntent.putExtra(AlarmClock.EXTRA_HOUR, calendar.get(Calendar.HOUR_OF_DAY));
+            alarmIntent.putExtra(AlarmClock.EXTRA_MINUTES, calendar.get(Calendar.MINUTE));
+            alarmIntent.putExtra(AlarmClock.EXTRA_SKIP_UI, true); // 跳過UI直接設置鬧鐘
+            alarmIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+
+            // 啟動鬧鐘應用
+            startActivity(alarmIntent);
+
+            Log.d(TAG, "已觸發系統鬧鐘");
+        } catch (Exception e) {
+            Log.e(TAG, "觸發系統鬧鐘時發生錯誤", e);
+        }
+    }
+
+    private MediaPlayer mediaPlayer;
+
     private void triggerRingtone() {
         try {
-            MediaPlayer mediaPlayer = MediaPlayer.create(getApplicationContext(), R.raw.windows);
+            // 如果已有播放器正在播放，先停止並釋放
+            if (mediaPlayer != null) {
+                if (mediaPlayer.isPlaying()) {
+                    mediaPlayer.stop();
+                }
+                mediaPlayer.release();
+            }
+
+            // 創建新的 MediaPlayer
+            mediaPlayer = MediaPlayer.create(getApplicationContext(), R.raw.windows);
 
             if (mediaPlayer != null) {
+                // 設置循環播放
+                mediaPlayer.setLooping(true);
                 mediaPlayer.start();
-                // 監聽音頻播放完成，釋放MediaPlayer
-                mediaPlayer.setOnCompletionListener(new MediaPlayer.OnCompletionListener() {
-                    @Override
-                    public void onCompletion(MediaPlayer mp) {
-                        mp.release();
-                    }
-                });
+
+                // 啟動一個活動來顯示提醒對話框
+                Intent dialogIntent = new Intent(this, AlarmDialogActivity.class);
+                dialogIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                startActivity(dialogIntent);
+
+                // 當對話框關閉時，廣播接收器會接收到訊息並停止播放
             }
         } catch (Exception e) {
             Log.e(TAG, "播放鈴聲時發生錯誤", e);
         }
     }
+
+    // 停止播放的方法（將被從對話框活動調用）
+    public static void stopRingtone() {
+        // 這個靜態方法需要從外部訪問當前的 NotificationReceiver 實例
+        if (currentInstance != null && currentInstance.mediaPlayer != null) {
+            if (currentInstance.mediaPlayer.isPlaying()) {
+                currentInstance.mediaPlayer.stop();
+            }
+            currentInstance.mediaPlayer.release();
+            currentInstance.mediaPlayer = null;
+        }
+    }
+
+    // 保存當前實例的靜態引用
+    private static NotificationReceiver currentInstance;
+
+
+
 
     public MutableLiveData<List<String>> getNotificationLiveData() {
         return notificationLiveData;

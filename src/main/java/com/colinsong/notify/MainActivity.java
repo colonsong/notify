@@ -33,6 +33,7 @@ import androidx.recyclerview.widget.RecyclerView;
 
 import com.colinsong.notify.databinding.ActivityMainBinding;
 
+import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Date;
@@ -42,8 +43,10 @@ import android.content.ContentValues;
 
 public class MainActivity extends AppCompatActivity {
     private static final String TAG = "MainActivity";
-    // 使用靜態變量以便NotificationReceiver可以訪問
+    // 保留此列表用於與舊代碼兼容
     public static List<String> notificationList = new ArrayList<>();
+    // 添加NotificationItem列表用於新的適配器
+    private List<NotificationItem> notificationItemList = new ArrayList<>();
     // 新增靜態adapter讓NotificationReceiver可以訪問
     public static NotificationAdapter notificationAdapter;
     private ActivityMainBinding binding;
@@ -80,8 +83,9 @@ public class MainActivity extends AppCompatActivity {
         notificationViewModel = new ViewModelProvider(this).get(NotificationViewModel.class);
         notificationList = notificationViewModel.getNotificationList();
 
-        notificationAdapter = new NotificationAdapter(notificationList);  // 创建适配器
-        recyclerView.setAdapter(notificationAdapter);  // 关联适配器
+        // 使用新的NotificationItem列表創建適配器
+        notificationAdapter = new NotificationAdapter(notificationItemList);
+        recyclerView.setAdapter(notificationAdapter);
 
         // 確保NotificationReceiver可以訪問這些靜態變量
         setupStaticReferences();
@@ -97,7 +101,9 @@ public class MainActivity extends AppCompatActivity {
             public void onChanged(List<String> notifications) {
                 notificationList.clear();
                 notificationList.addAll(notifications);
-                notificationAdapter.notifyDataSetChanged();
+
+                // 將String列表轉換為NotificationItem列表
+                updateNotificationItems();
             }
         });
 
@@ -130,8 +136,21 @@ public class MainActivity extends AppCompatActivity {
                     String formattedTitle = appName + "\n" + timeStamp + "\n" + notificationTitle;
                     String notificationInfo = formattedTitle + "\n " + notificationContent;
 
-                    // 直接添加到列表並更新UI
+                    // 添加到String列表
                     notificationList.add(0, notificationInfo);
+
+                    // 創建NotificationItem並添加到itemList
+                    SimpleDateFormat outputFormat = new SimpleDateFormat("MM/dd HH:mm", Locale.getDefault());
+                    String formattedTime = outputFormat.format(new Date());
+
+                    NotificationItem item = new NotificationItem(
+                            notificationItemList.size() + 1,
+                            appName,
+                            formattedTime,
+                            notificationTitle,
+                            notificationContent
+                    );
+                    notificationItemList.add(0, item);
                     notificationAdapter.notifyDataSetChanged();
 
                     // 同時寫入資料庫，確保數據持久化
@@ -156,6 +175,50 @@ public class MainActivity extends AppCompatActivity {
         handleBrandSpecificOptimizations();
 
         Log.i(TAG, "MainActivity onCreate 完成");
+    }
+
+    // 將String列表轉換為NotificationItem列表
+    private void updateNotificationItems() {
+        notificationItemList.clear();
+        for (String notification : notificationList) {
+            NotificationItem item = convertStringToNotificationItem(notification);
+            if (item != null) {
+                notificationItemList.add(item);
+            }
+        }
+        notificationAdapter.notifyDataSetChanged();
+    }
+
+    // 將String轉換為NotificationItem
+    private NotificationItem convertStringToNotificationItem(String notification) {
+        try {
+            String[] parts = notification.split("\n", 4);
+            if (parts.length >= 4) {
+                String appNameWithId = parts[0]; // "count appName"
+                String timestamp = parts[1];
+                String title = parts[2];
+                String content = parts[3].trim();
+
+                // 解析ID和應用名
+                int id = 0;
+                String appName = appNameWithId;
+
+                String[] idParts = appNameWithId.split(" ", 2);
+                if (idParts.length > 1) {
+                    try {
+                        id = Integer.parseInt(idParts[0].trim());
+                        appName = idParts[1].trim();
+                    } catch (NumberFormatException e) {
+                        Log.e(TAG, "無法解析ID: " + appNameWithId, e);
+                    }
+                }
+
+                return new NotificationItem(id, appName, timestamp, title, content);
+            }
+        } catch (Exception e) {
+            Log.e(TAG, "轉換通知格式失敗: " + notification, e);
+        }
+        return null;
     }
 
     // 確保靜態引用設置正確
@@ -304,6 +367,7 @@ public class MainActivity extends AppCompatActivity {
     private void readNotificationsFromDatabase() {
         try {
             List<String> notifications = new ArrayList<>();
+            notificationItemList.clear();
 
             // 取得可讀取的資料庫實例
             SQLiteDatabase db = dbHelper.getReadableDatabase();
@@ -343,9 +407,32 @@ public class MainActivity extends AppCompatActivity {
                     appName = packageName.substring(packageName.lastIndexOf(".") + 1);
                 }
 
-                String notificationTitle = count-- + " " + appName + "\n" + timeStamp + "\n" + title;
-                String notificationContent = content;
-                String notificationInfo = notificationTitle + "\n " + notificationContent;
+                // 美化時間戳格式
+                SimpleDateFormat inputFormat = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault());
+                SimpleDateFormat outputFormat = new SimpleDateFormat("MM/dd HH:mm", Locale.getDefault());
+                String formattedTime = timeStamp;
+                try {
+                    Date date = inputFormat.parse(timeStamp);
+                    if (date != null) {
+                        formattedTime = outputFormat.format(date);
+                    }
+                } catch (ParseException e) {
+                    Log.e(TAG, "日期格式轉換錯誤", e);
+                }
+
+                // 創建通知項目對象
+                NotificationItem item = new NotificationItem(
+                        count--,
+                        appName,
+                        formattedTime,
+                        title,
+                        content
+                );
+                notificationItemList.add(item);
+
+                // 同時維護String格式的通知列表用於與舊代碼兼容
+                String notificationTitle = (count+1) + " " + appName + "\n" + timeStamp + "\n" + title;
+                String notificationInfo = notificationTitle + "\n " + content;
                 notifications.add(notificationInfo);
             }
 
@@ -353,8 +440,14 @@ public class MainActivity extends AppCompatActivity {
             cursor.close();
             db.close();
 
-            // 使用 LiveData 更新通知列表数据
-            notificationLiveData.setValue(notifications);
+            // 更新String通知列表
+            notificationList.clear();
+            notificationList.addAll(notifications);
+
+            // 通知適配器數據更新
+            notificationAdapter.notifyDataSetChanged();
+
+            Log.d(TAG, "已從資料庫加載 " + notificationItemList.size() + " 條通知");
         } catch (Exception e) {
             Log.e(TAG, "讀取資料庫時發生錯誤", e);
             Toast.makeText(this, "讀取通知歷史記錄失敗", Toast.LENGTH_SHORT).show();
