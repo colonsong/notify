@@ -110,7 +110,12 @@ public class DashboardFragment extends Fragment {
             holder.itemView.setOnClickListener(v -> {
                 // 將日期傳給 MainActivity 進行過濾，並返回主頁
                 if (getActivity() instanceof MainActivity) {
-                    ((MainActivity) getActivity()).filterNotificationsByDate(item.getDate());
+                    MainActivity activity = (MainActivity) getActivity();
+
+                    // 調用過濾方法
+                    activity.filterNotificationsByDate(item.getDate());
+
+                    // 不需要在這裡調用其他方法，MainActivity 會處理好導航和更新
                 }
             });
         }

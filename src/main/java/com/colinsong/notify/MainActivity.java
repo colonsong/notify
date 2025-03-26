@@ -25,15 +25,9 @@ import android.widget.Button;
 import android.widget.Toast;
 
 import androidx.appcompat.app.AppCompatActivity;
-import androidx.fragment.app.Fragment;
 import androidx.lifecycle.MutableLiveData;
 import androidx.lifecycle.Observer;
 import androidx.lifecycle.ViewModelProvider;
-import androidx.navigation.NavController;
-import androidx.navigation.Navigation;
-import androidx.navigation.fragment.NavHostFragment;
-import androidx.recyclerview.widget.LinearLayoutManager;
-import androidx.recyclerview.widget.RecyclerView;
 
 import com.colinsong.notify.databinding.ActivityMainBinding;
 import com.colinsong.notify.ui.notifications.NotificationsFragment;
@@ -55,6 +49,9 @@ public class MainActivity extends AppCompatActivity {
     public static NotificationAdapter notificationAdapter;
     private ActivityMainBinding binding;
     private MyDatabaseHelper dbHelper;
+    private HomeFragment homeFragment;
+    private DashboardFragment dashboardFragment;
+    private NotificationsFragment notificationsFragment;
 
     // ViewModel成員變量
     private NotificationViewModel notificationViewModel;
@@ -69,9 +66,15 @@ public class MainActivity extends AppCompatActivity {
     private boolean isFirstRun = false;
 
     @Override
+
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         Log.i(TAG, "MainActivity onCreate 開始");
+
+        // 初始化 Fragment 實例
+        homeFragment = new HomeFragment();
+        dashboardFragment = new DashboardFragment();
+        notificationsFragment = new NotificationsFragment();
 
         // 初始化 MyDatabaseHelper，使用單例模式
         dbHelper = MyDatabaseHelper.getInstance(this);
@@ -79,17 +82,12 @@ public class MainActivity extends AppCompatActivity {
         binding = ActivityMainBinding.inflate(getLayoutInflater());
         setContentView(binding.getRoot());
 
-        // 初始化 RecyclerView 和适配器
-        RecyclerView recyclerView = findViewById(R.id.notificationRecyclerView);
-        recyclerView.setLayoutManager(new LinearLayoutManager(this));
-
         // 創建或獲取現有的ViewModel
         notificationViewModel = new ViewModelProvider(this).get(NotificationViewModel.class);
         notificationList = notificationViewModel.getNotificationList();
 
-        // 使用新的NotificationItem列表創建適配器
+        // 使用新的NotificationItem列表創建適配器 (不再設置給 RecyclerView)
         notificationAdapter = new NotificationAdapter(notificationItemList);
-        recyclerView.setAdapter(notificationAdapter);
 
         // 確保NotificationReceiver可以訪問這些靜態變量
         setupStaticReferences();
@@ -168,6 +166,11 @@ public class MainActivity extends AppCompatActivity {
 
                     // 確保靜態引用正確設置
                     setupStaticReferences();
+
+                    // 如果目前顯示的是主頁，通知 HomeFragment 更新
+                    if (homeFragment != null && homeFragment.isVisible()) {
+                        homeFragment.updateNotifications();
+                    }
                 } catch (Exception e) {
                     Log.e(TAG, "添加測試通知失敗", e);
                     Toast.makeText(MainActivity.this, "添加測試通知失敗", Toast.LENGTH_SHORT).show();
@@ -179,6 +182,11 @@ public class MainActivity extends AppCompatActivity {
         handleBrandSpecificOptimizations();
 
         setupBottomNavigation();
+
+        // 初始顯示主頁 Fragment
+        getSupportFragmentManager().beginTransaction()
+                .replace(R.id.fragment_container, homeFragment)
+                .commit();
 
         Log.i(TAG, "MainActivity onCreate 完成");
     }
@@ -313,6 +321,7 @@ public class MainActivity extends AppCompatActivity {
     }
 
     // OPPO手機的電池優化處理
+// OPPO手機的電池優化處理
     private void requestOppoBatteryOptimization() {
         try {
             Intent intent = new Intent();
@@ -370,7 +379,7 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
-    private void readNotificationsFromDatabase() {
+    public void readNotificationsFromDatabase() {
         try {
             List<String> notifications = new ArrayList<>();
             notificationItemList.clear();
@@ -636,8 +645,8 @@ public class MainActivity extends AppCompatActivity {
             binding.navView.setSelectedItemId(R.id.navigation_home);
         }
 
-        // 3. 如果使用 Fragment，通知 HomeFragment 更新
-        updateHomeFragment();
+        // 3. 不需要在這裡調用 homeFragment.updateNotifications()
+        // 因為 showMainFragment() 會自動調用它
     }
 
     // 按日期從資料庫讀取通知
@@ -717,14 +726,11 @@ public class MainActivity extends AppCompatActivity {
         return timeStamp;
     }
 
-    // 更新 HomeFragment
+    // 更新 HomeFragment - 修正版，不再使用 NavHostFragment
     private void updateHomeFragment() {
-        Fragment navHostFragment = getSupportFragmentManager().findFragmentById(R.id.nav_host_fragment_activity_main);
-        if (navHostFragment != null) {
-            Fragment currentFragment = navHostFragment.getChildFragmentManager().getPrimaryNavigationFragment();
-            if (currentFragment instanceof HomeFragment) {
-                ((HomeFragment) currentFragment).updateNotifications();
-            }
+        // 直接使用持有的 homeFragment 實例進行更新
+        if (homeFragment != null) {
+            homeFragment.updateNotifications();
         }
     }
 
@@ -741,9 +747,6 @@ public class MainActivity extends AppCompatActivity {
 
         // 更新通知列表
         readNotificationsFromDatabase();
-
-
-
     }
 
     // 在 onCreate 方法中添加底部導航的監聽器設置
@@ -752,15 +755,12 @@ public class MainActivity extends AppCompatActivity {
         binding.navView.setOnItemSelectedListener(item -> {
             int itemId = item.getItemId();
             if (itemId == R.id.navigation_home) {
-                // 顯示主頁/通知列表
                 showMainFragment();
                 return true;
             } else if (itemId == R.id.navigation_dashboard) {
-                // 顯示按日期分組的列表
                 showDashboardFragment();
                 return true;
             } else if (itemId == R.id.navigation_notifications) {
-                // 顯示通知設置頁面（如果有的話）
                 showNotificationsFragment();
                 return true;
             }
@@ -769,29 +769,29 @@ public class MainActivity extends AppCompatActivity {
     }
 
     // 添加切換到不同 Fragment 的方法
+    // 修改 showMainFragment 方法，確保在切換後更新通知
     private void showMainFragment() {
-        // 隱藏其他 Fragment，顯示主 Fragment
         getSupportFragmentManager().beginTransaction()
                 .setCustomAnimations(android.R.anim.fade_in, android.R.anim.fade_out)
-                .replace(R.id.container, new HomeFragment())
+                .replace(R.id.fragment_container, homeFragment)
                 .commit();
 
-
+        // 這裡不要立即調用更新，因為 Fragment 事務是異步的
+        // 延遲一點時間再更新
+        homeFragment.postUpdate();
     }
 
     private void showDashboardFragment() {
-        // 顯示 Dashboard Fragment
         getSupportFragmentManager().beginTransaction()
                 .setCustomAnimations(android.R.anim.fade_in, android.R.anim.fade_out)
-                .replace(R.id.container, new DashboardFragment())
+                .replace(R.id.fragment_container, dashboardFragment)
                 .commit();
     }
 
     private void showNotificationsFragment() {
-        // 顯示通知設置 Fragment（如果有的話）
         getSupportFragmentManager().beginTransaction()
                 .setCustomAnimations(android.R.anim.fade_in, android.R.anim.fade_out)
-                .replace(R.id.container, new NotificationsFragment())
+                .replace(R.id.fragment_container, notificationsFragment)
                 .commit();
     }
 
@@ -801,18 +801,8 @@ public class MainActivity extends AppCompatActivity {
 
     // 添加更新通知的方法
     public void updateNotifications() {
-        // 查找 NavController 然後獲取當前 Fragment
-        NavController navController = Navigation.findNavController(this, R.id.nav_host_fragment_activity_main);
-
-        // 獲取當前的 NavHostFragment
-        Fragment navHostFragment = getSupportFragmentManager().findFragmentById(R.id.nav_host_fragment_activity_main);
-        if (navHostFragment != null) {
-            // 獲取當前顯示的 Fragment
-            NavHostFragment.findNavController(navHostFragment).getCurrentDestination();
-            Fragment currentFragment = navHostFragment.getChildFragmentManager().getPrimaryNavigationFragment();
-            if (currentFragment instanceof HomeFragment) {
-                ((HomeFragment) currentFragment).updateNotifications();
-            }
+        if (homeFragment != null) {
+            homeFragment.updateNotifications();
         }
     }
 
@@ -827,6 +817,4 @@ public class MainActivity extends AppCompatActivity {
 
         Log.i(TAG, "MainActivity onDestroy");
     }
-
-
 }
