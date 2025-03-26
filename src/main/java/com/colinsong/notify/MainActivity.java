@@ -71,6 +71,7 @@ public class MainActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         Log.i(TAG, "MainActivity onCreate 開始");
 
+
         // 初始化 Fragment 實例
         homeFragment = new HomeFragment();
         dashboardFragment = new DashboardFragment();
@@ -192,6 +193,8 @@ public class MainActivity extends AppCompatActivity {
     }
 
     // 將String列表轉換為NotificationItem列表
+
+
     private void updateNotificationItems() {
         notificationItemList.clear();
         for (String notification : notificationList) {
