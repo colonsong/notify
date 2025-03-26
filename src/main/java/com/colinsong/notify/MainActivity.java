@@ -36,7 +36,6 @@ import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
 import com.colinsong.notify.databinding.ActivityMainBinding;
-import com.colinsong.notify.ui.dashboard.DashboardFragment;
 import com.colinsong.notify.ui.notifications.NotificationsFragment;
 
 import java.text.ParseException;
@@ -627,78 +626,105 @@ public class MainActivity extends AppCompatActivity {
 
     // 在 MainActivity 中添加
     public void filterNotificationsByDate(String date) {
-        android.util.Log.d("MainActivity", "過濾日期: " + date);
-        // 讀取指定日期的通知
+        Log.d(TAG, "過濾日期: " + date);
+
+        // 1. 讀取特定日期的通知
         readNotificationsFromDatabaseByDate(date);
 
-        // 切換回通知列表視圖（使用底部導航）
+        // 2. 切換回主頁視圖
         if (binding.navView != null) {
-            binding.navView.setSelectedItemId(R.id.navigation_home); // 主頁/通知列表頁面
+            binding.navView.setSelectedItemId(R.id.navigation_home);
         }
+
+        // 3. 如果使用 Fragment，通知 HomeFragment 更新
+        updateHomeFragment();
     }
 
     // 按日期從資料庫讀取通知
     private void readNotificationsFromDatabaseByDate(String date) {
         try {
-            notificationItemList.clear();
+            notificationItemList.clear();  // 清空當前列表
 
-            // 取得可讀取的資料庫實例
             SQLiteDatabase db = dbHelper.getReadableDatabase();
 
-            // 指定要查詢的欄位
-            String[] projection = {
-                    "timestamp",
-                    "packageName",
-                    "title",
-                    "content"
-            };
-
-            // 添加日期過濾條件
+            // 使用 LIKE 查詢來匹配日期前綴
             String selection = "timestamp LIKE ?";
-            String[] selectionArgs = {date + "%"};
+            String[] selectionArgs = {date + "%"};  // 例如，"2023-03-25%"
 
-            // 查詢資料庫
             Cursor cursor = db.query(
-                    "messages",
-                    projection,
-                    selection,
-                    selectionArgs,
-                    null,
-                    null,
-                    "timestamp DESC"
+                    "messages",  // 表格名稱
+                    new String[]{"timestamp", "packageName", "title", "content"},  // 欄位
+                    selection,  // WHERE 條件
+                    selectionArgs,  // WHERE 參數
+                    null, null,
+                    "timestamp DESC"  // 排序
             );
 
             int count = cursor.getCount();
-            Log.i(TAG, "從資料庫讀取到 " + count + " 條 " + date + " 的通知");
+            Log.i(TAG, "找到 " + count + " 條 " + date + " 的通知");
 
-            // 將查詢結果加入到 notifications 中
+            // 讀取查詢結果
             while (cursor.moveToNext()) {
-                // 處理數據並添加到 notificationItemList
-                // (與原方法相同的處理邏輯)
+                // 提取數據，創建 NotificationItem 物件，加入列表
+                // (與原本的 readNotificationsFromDatabase 方法類似)
+                String timeStamp = cursor.getString(cursor.getColumnIndexOrThrow("timestamp"));
+                String packageName = cursor.getString(cursor.getColumnIndexOrThrow("packageName"));
+                String title = cursor.getString(cursor.getColumnIndexOrThrow("title"));
+                String content = cursor.getString(cursor.getColumnIndexOrThrow("content"));
+
+                // 處理應用名稱
+                String appName = packageName;
+                if (packageName.lastIndexOf(".") != -1) {
+                    appName = packageName.substring(packageName.lastIndexOf(".") + 1);
+                }
+
+                // 格式化時間
+                String formattedTime = formatTime(timeStamp);
+
+                // 創建並添加 NotificationItem
+                NotificationItem item = new NotificationItem(count--, appName, formattedTime, title, content);
+                notificationItemList.add(item);
             }
 
-            // 關閉 Cursor 和資料庫連接
             cursor.close();
             db.close();
 
-            // 更新UI
-            notificationAdapter.notifyDataSetChanged();
+            // 通知適配器刷新
+            if (notificationAdapter != null) {
+                notificationAdapter.notifyDataSetChanged();
+            }
 
-            // 添加過濾提示
-            Toast.makeText(this, formatDate(date) + " 的通知", Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, date + " 的通知：" + notificationItemList.size() + " 條", Toast.LENGTH_SHORT).show();
+
         } catch (Exception e) {
-            Log.e(TAG, "讀取資料庫時發生錯誤", e);
+            Log.e(TAG, "按日期讀取通知時出錯: " + e.getMessage());
+            Toast.makeText(this, "讀取通知時出錯", Toast.LENGTH_SHORT).show();
         }
     }
 
-    private String formatDate(String dateStr) {
+    // 輔助方法：格式化時間戳
+    private String formatTime(String timeStamp) {
         try {
-            SimpleDateFormat inputFormat = new SimpleDateFormat("yyyy-MM-dd", Locale.getDefault());
-            SimpleDateFormat outputFormat = new SimpleDateFormat("MM月dd日", Locale.CHINESE);
-            Date date = inputFormat.parse(dateStr);
-            return outputFormat.format(date);
+            SimpleDateFormat inputFormat = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault());
+            SimpleDateFormat outputFormat = new SimpleDateFormat("MM/dd HH:mm", Locale.getDefault());
+            Date date = inputFormat.parse(timeStamp);
+            if (date != null) {
+                return outputFormat.format(date);
+            }
         } catch (Exception e) {
-            return dateStr;
+            Log.e(TAG, "格式化時間出錯: " + e.getMessage());
+        }
+        return timeStamp;
+    }
+
+    // 更新 HomeFragment
+    private void updateHomeFragment() {
+        Fragment navHostFragment = getSupportFragmentManager().findFragmentById(R.id.nav_host_fragment_activity_main);
+        if (navHostFragment != null) {
+            Fragment currentFragment = navHostFragment.getChildFragmentManager().getPrimaryNavigationFragment();
+            if (currentFragment instanceof HomeFragment) {
+                ((HomeFragment) currentFragment).updateNotifications();
+            }
         }
     }
 
@@ -715,6 +741,9 @@ public class MainActivity extends AppCompatActivity {
 
         // 更新通知列表
         readNotificationsFromDatabase();
+
+
+
     }
 
     // 在 onCreate 方法中添加底部導航的監聽器設置
@@ -746,6 +775,8 @@ public class MainActivity extends AppCompatActivity {
                 .setCustomAnimations(android.R.anim.fade_in, android.R.anim.fade_out)
                 .replace(R.id.container, new HomeFragment())
                 .commit();
+
+
     }
 
     private void showDashboardFragment() {
