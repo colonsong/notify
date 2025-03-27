@@ -1,5 +1,6 @@
 package com.colinsong.notify;
 
+import android.Manifest;
 import android.app.ActivityManager;
 import android.app.AlarmManager;
 import android.app.AlertDialog;
@@ -25,6 +26,8 @@ import android.widget.Button;
 import android.widget.Toast;
 
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.core.app.ActivityCompat;
+import androidx.core.content.ContextCompat;
 import androidx.lifecycle.MutableLiveData;
 import androidx.lifecycle.Observer;
 import androidx.lifecycle.ViewModelProvider;
@@ -38,7 +41,6 @@ import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
 import java.util.Locale;
-
 public class MainActivity extends AppCompatActivity {
     private static final String TAG = "MainActivity";
     // 保留此列表用於與舊代碼兼容
@@ -49,6 +51,8 @@ public class MainActivity extends AppCompatActivity {
     public static NotificationAdapter notificationAdapter;
     private ActivityMainBinding binding;
     private MyDatabaseHelper dbHelper;
+    // 在MainActivity類的頂部，與其他常量一起定義
+    private static final int REQUEST_NOTIFICATION_PERMISSION = 100;
     private HomeFragment homeFragment;
     private DashboardFragment dashboardFragment;
     private NotificationsFragment notificationsFragment;
@@ -491,6 +495,18 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void requestNotificationListenerPermission() {
+
+        // 檢查普通通知權限
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            if (ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS)
+                    != PackageManager.PERMISSION_GRANTED) {
+                // 請求普通通知權限
+                ActivityCompat.requestPermissions(this,
+                        new String[]{Manifest.permission.POST_NOTIFICATIONS},
+                        REQUEST_NOTIFICATION_PERMISSION);
+            }
+        }
+        // 檢查通知監聽權限
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP_MR1) {
             NotificationManager notificationManager = getSystemService(NotificationManager.class);
             if (notificationManager != null) {

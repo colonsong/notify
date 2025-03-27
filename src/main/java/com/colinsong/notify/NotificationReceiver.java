@@ -217,6 +217,26 @@ public class NotificationReceiver extends NotificationListenerService {
             return START_NOT_STICKY;
         }
 
+        // 處理停止鈴聲請求
+        if (intent != null && "STOP_RINGTONE".equals(intent.getAction())) {
+            Log.i(TAG, "收到停止鈴聲請求");
+            if (mediaPlayer != null) {
+                if (mediaPlayer.isPlaying()) {
+                    mediaPlayer.stop();
+                }
+                mediaPlayer.release();
+                mediaPlayer = null;
+
+                // 取消警報通知
+                NotificationManager notificationManager = getSystemService(NotificationManager.class);
+                if (notificationManager != null) {
+                    notificationManager.cancel(2000);
+                }
+
+                Log.d(TAG, "已停止鈴聲");
+            }
+        }
+
         // 如果 notificationList 或 notificationAdapter 為 null，嘗試從 MainActivity 獲取
         if (notificationList == null) {
             notificationList = MainActivity.notificationList;
@@ -543,21 +563,77 @@ public class NotificationReceiver extends NotificationListenerService {
                 // 獲取 WakeLock 確保鈴聲能夠播放
                 acquireWakeLock();
 
-                // 更新通知
-                NotificationManager notificationManager = getSystemService(NotificationManager.class);
-                if (notificationManager != null) {
-                    notificationManager.notify(
-                            ONGOING_NOTIFICATION_ID,
-                            createEnhancedNotification("⚠️ 檢測到重要通知！")
-                    );
+                // 創建停止鈴聲的 Intent
+                Intent stopRingtoneIntent = new Intent(this, NotificationReceiver.class);
+                stopRingtoneIntent.setAction("STOP_RINGTONE");
+                PendingIntent stopRingtonePendingIntent;
+
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                    stopRingtonePendingIntent = PendingIntent.getService(this, 1001, stopRingtoneIntent,
+                            PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
+                } else {
+                    stopRingtonePendingIntent = PendingIntent.getService(this, 1001, stopRingtoneIntent,
+                            PendingIntent.FLAG_UPDATE_CURRENT);
                 }
 
-                // 啟動一個活動來顯示提醒對話框
-                Intent dialogIntent = new Intent(this, AlarmDialogActivity.class);
-                dialogIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-                startActivity(dialogIntent);
+                // 創建全屏意圖 - 使用 AlarmDialogActivity 顯示一個彈出對話框
+                Intent fullScreenIntent = new Intent(this, AlarmDialogActivity.class);
+                fullScreenIntent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK
+                        | Intent.FLAG_ACTIVITY_CLEAR_TOP
+                        | Intent.FLAG_ACTIVITY_SINGLE_TOP);
+                PendingIntent fullScreenPendingIntent;
 
-                // 當對話框關閉時，廣播接收器會接收到訊息並停止播放
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                    fullScreenPendingIntent = PendingIntent.getActivity(this, 2001, fullScreenIntent,
+                            PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
+                } else {
+                    fullScreenPendingIntent = PendingIntent.getActivity(this, 2001, fullScreenIntent,
+                            PendingIntent.FLAG_UPDATE_CURRENT);
+                }
+
+                // 創建高優先級的警報通知，添加全屏意圖
+                NotificationCompat.Builder alertBuilder = new NotificationCompat.Builder(this, "alert_channel_id")
+                        .setContentTitle("⚠️ 重要通知提醒!")
+                        .setContentText("檢測到含有關鍵字的通知")
+                        .setSmallIcon(R.drawable.ic_notification)
+                        .setPriority(NotificationCompat.PRIORITY_MAX)
+                        .setCategory(NotificationCompat.CATEGORY_CALL) // 使用CALL類別，在勿擾模式下更優先
+                        .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
+                        .setColorized(true)
+                        .setColor(Color.RED)
+                        .setOngoing(true) // 持續顯示，不可滑動刪除
+                        .setFullScreenIntent(fullScreenPendingIntent, true) // 添加全屏意圖
+                        .addAction(android.R.drawable.ic_delete, "停止響鈴", stopRingtonePendingIntent);
+
+                // 確保通知通道存在 (Android 8.0+)
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    NotificationChannel alertChannel = new NotificationChannel(
+                            "alert_channel_id",
+                            "重要通知提醒",
+                            NotificationManager.IMPORTANCE_HIGH);
+                    alertChannel.setDescription("用於發出聲音提醒的重要通知");
+                    alertChannel.enableLights(true);
+                    alertChannel.setLightColor(Color.RED);
+                    alertChannel.enableVibration(true);
+                    alertChannel.setLockscreenVisibility(Notification.VISIBILITY_PUBLIC);
+                    alertChannel.setBypassDnd(true); // 忽略勿擾模式
+                    alertChannel.setImportance(NotificationManager.IMPORTANCE_HIGH); // 設置為高重要性
+
+                    NotificationManager notificationManager = getSystemService(NotificationManager.class);
+                    if (notificationManager != null) {
+                        notificationManager.createNotificationChannel(alertChannel);
+                        // 顯示通知
+                        notificationManager.notify(2000, alertBuilder.build());
+                    }
+                } else {
+                    // 低於 Android 8.0 的版本
+                    NotificationManager notificationManager = (NotificationManager) getSystemService(NOTIFICATION_SERVICE);
+                    if (notificationManager != null) {
+                        notificationManager.notify(2000, alertBuilder.build());
+                    }
+                }
+
+                Log.d(TAG, "已觸發鈴聲並顯示帶有全屏意圖的通知");
             }
         } catch (Exception e) {
             Log.e(TAG, "播放鈴聲時發生錯誤", e);
